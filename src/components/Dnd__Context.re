@@ -81,18 +81,20 @@ module Make = (Cfg: Config) => {
       switch (state.status) {
       | StandBy =>
         state.draggables :=
-          state.draggables^
-          |. Map.set(
-               draggable.id,
-               {
-                 id: draggable.id,
-                 droppableId: draggable.droppableId,
-                 geometry: None,
-                 shift: None,
-                 animating: false,
-                 getGeometry: draggable.getGeometry,
-               },
-             )
+          (state.draggables^)
+          ->(
+              Map.set(
+                draggable.id,
+                {
+                  id: draggable.id,
+                  droppableId: draggable.droppableId,
+                  geometry: None,
+                  shift: None,
+                  animating: false,
+                  getGeometry: draggable.getGeometry,
+                },
+              )
+            )
       | Dragging(_, _)
       | Dropping(_) => ()
       };
@@ -109,27 +111,29 @@ module Make = (Cfg: Config) => {
       switch (state.status) {
       | StandBy =>
         state.droppables :=
-          state.droppables^
-          |. Map.set(
-               droppable.id,
-               {
-                 id: droppable.id,
-                 axis: droppable.axis,
-                 geometry: None,
-                 scrollable: None,
-                 accept: droppable.accept,
-                 getGeometryAndScrollable: droppable.getGeometryAndScrollable,
-               },
-             )
+          (state.droppables^)
+          ->(
+              Map.set(
+                droppable.id,
+                {
+                  id: droppable.id,
+                  axis: droppable.axis,
+                  geometry: None,
+                  scrollable: None,
+                  accept: droppable.accept,
+                  getGeometryAndScrollable: droppable.getGeometryAndScrollable,
+                },
+              )
+            )
       | Dragging(_, _)
       | Dropping(_) => ()
       };
 
     let disposeDraggable = (draggableId, {ReasonReact.state}) =>
-      state.draggables := state.draggables^ |. Map.remove(draggableId);
+      state.draggables := (state.draggables^)->(Map.remove(draggableId));
 
     let disposeDroppable = (droppableId, {ReasonReact.state}) =>
-      state.droppables := state.droppables^ |. Map.remove(droppableId);
+      state.droppables := (state.droppables^)->(Map.remove(droppableId));
   };
 
   let component = ReasonReact.reducerComponent("DndContext");
@@ -161,16 +165,16 @@ module Make = (Cfg: Config) => {
             ({state, send}) => {
               open Webapi.Dom;
 
-              let droppable = state.droppables^ |. Map.getExn(droppableId);
+              let droppable = (state.droppables^)->(Map.getExn(droppableId));
 
               let maxScroll = Scrollable.Window.getMaxScroll();
               let scrollPosition = Scrollable.Window.getScrollPosition();
 
-              let rect = element |. HtmlElement.getBoundingClientRect;
+              let rect = element->HtmlElement.getBoundingClientRect;
               let style =
                 element
-                |. Html.castHtmlElementToElement
-                |. Window.getComputedStyle(window);
+                ->Html.castHtmlElementToElement
+                ->(Window.getComputedStyle(window));
 
               let viewportRect = rect |> Geometry.getViewportRect;
               let pageRect =
@@ -192,32 +196,36 @@ module Make = (Cfg: Config) => {
                       ~was=startPoint.page.y,
                       ~is=currentPoint.page.y,
                     ),
-                  dimensions: rect |. Geometry.getDimensions,
-                  margins: style |. Geometry.getMargins,
-                  borders: style |. Geometry.getBorders,
+                  dimensions: rect->Geometry.getDimensions,
+                  margins: style->Geometry.getMargins,
+                  borders: style->Geometry.getBorders,
                   departurePoint: currentPoint,
                   currentPoint,
                   departureRect: currentRect,
                   currentRect,
                   delta: {
-                    x: 0,
-                    y: 0,
+                    x: 0.0,
+                    y: 0.0,
                   },
                 };
 
               state.draggables :=
-                state.draggables^
-                |. Map.map(draggable =>
-                     {...draggable, geometry: Some(draggable.getGeometry())}
-                   );
+                (state.draggables^)
+                ->(
+                    Map.map(draggable =>
+                      {...draggable, geometry: Some(draggable.getGeometry())}
+                    )
+                  );
 
               state.droppables :=
-                state.droppables^
-                |. Map.map(droppable => {
-                     let (geometry, scrollable) =
-                       droppable.getGeometryAndScrollable();
-                     {...droppable, geometry: Some(geometry), scrollable};
-                   });
+                (state.droppables^)
+                ->(
+                    Map.map(droppable => {
+                      let (geometry, scrollable) =
+                        droppable.getGeometryAndScrollable();
+                      {...droppable, geometry: Some(geometry), scrollable};
+                    })
+                  );
 
               state.viewport := Some(Geometry.getViewport());
 
@@ -228,8 +236,8 @@ module Make = (Cfg: Config) => {
                     initial: scrollPosition,
                     current: scrollPosition,
                     delta: {
-                      x: 0,
-                      y: 0,
+                      x: 0.0,
+                      y: 0.0,
                     },
                   },
                 );
@@ -262,56 +270,62 @@ module Make = (Cfg: Config) => {
                   Some(
                     Webapi.requestCancellableAnimationFrame(_ => {
                       let targetDroppable =
-                        state.droppables^
-                        |> Map.valuesToArray
-                        |> Js.Array.find(
-                             (
-                               droppable:
-                                 DroppableBag.t(
-                                   Cfg.Draggable.t,
-                                   Cfg.Droppable.t,
-                                 ),
-                             ) => {
-                             let geometry =
-                               droppable.geometry |. Option.getExn;
-                             let rect =
-                               switch (droppable.scrollable) {
-                               | None => geometry.rect.page
-                               | Some(scrollable) =>
-                                 Rect.{
-                                   top:
-                                     scrollable.geometry.rect.page.top
-                                     > geometry.rect.page.top ?
-                                       scrollable.geometry.rect.page.top :
-                                       geometry.rect.page.top,
-                                   bottom:
-                                     scrollable.geometry.rect.page.bottom
-                                     < geometry.rect.page.bottom ?
-                                       scrollable.geometry.rect.page.bottom :
-                                       geometry.rect.page.bottom,
-                                   left:
-                                     scrollable.geometry.rect.page.left
-                                     > geometry.rect.page.left ?
-                                       scrollable.geometry.rect.page.left :
-                                       geometry.rect.page.left,
-                                   right:
-                                     scrollable.geometry.rect.page.right
-                                     < geometry.rect.page.right ?
-                                       scrollable.geometry.rect.page.right :
-                                       geometry.rect.page.right,
-                                 }
-                               };
+                        (
+                          state.droppables^
+                          |> Map.valuesToArray
+                          |> Js.Array.find(
+                               (
+                                 droppable:
+                                   DroppableBag.t(
+                                     Cfg.Draggable.t,
+                                     Cfg.Droppable.t,
+                                   ),
+                               ) => {
+                               let geometry =
+                                 droppable.geometry->Option.getExn;
+                               let rect =
+                                 switch (droppable.scrollable) {
+                                 | None => geometry.rect.page
+                                 | Some(scrollable) =>
+                                   Rect.{
+                                     top:
+                                       scrollable.geometry.rect.page.top
+                                       > geometry.rect.page.top ?
+                                         scrollable.geometry.rect.page.top :
+                                         geometry.rect.page.top,
+                                     bottom:
+                                       scrollable.geometry.rect.page.bottom
+                                       < geometry.rect.page.bottom ?
+                                         scrollable.geometry.rect.page.bottom :
+                                         geometry.rect.page.bottom,
+                                     left:
+                                       scrollable.geometry.rect.page.left
+                                       > geometry.rect.page.left ?
+                                         scrollable.geometry.rect.page.left :
+                                         geometry.rect.page.left,
+                                     right:
+                                       scrollable.geometry.rect.page.right
+                                       < geometry.rect.page.right ?
+                                         scrollable.geometry.rect.page.right :
+                                         geometry.rect.page.right,
+                                   }
+                                 };
 
-                             DroppableBag.(
-                               droppable.accept
-                               |. Option.map(accept =>
-                                    ghost.draggableId |> accept
-                                  )
-                               |. Option.getWithDefault(true)
-                               && Geometry.(nextPoint.page |. isWithin(rect))
-                             );
-                           })
-                        |. Option.map(droppable => droppable.id);
+                               DroppableBag.(
+                                 droppable.accept
+                                 ->(
+                                     Option.map(accept =>
+                                       ghost.draggableId |> accept
+                                     )
+                                   )
+                                 ->(Option.getWithDefault(true))
+                                 && Geometry.(
+                                      nextPoint.page->(isWithin(rect))
+                                    )
+                               );
+                             })
+                        )
+                        ->(Option.map(droppable => droppable.id));
 
                       let targetingOriginalDroppable =
                         switch (targetDroppable) {
@@ -332,50 +346,50 @@ module Make = (Cfg: Config) => {
                             Rect.{
                               top:
                                 ghost.currentRect.page.top
-                                + (
-                                  nextPoint.page.y - ghost.currentPoint.page.y
+                                +. (
+                                  nextPoint.page.y -. ghost.currentPoint.page.y
                                 ),
                               bottom:
                                 ghost.currentRect.page.bottom
-                                + (
-                                  nextPoint.page.y - ghost.currentPoint.page.y
+                                +. (
+                                  nextPoint.page.y -. ghost.currentPoint.page.y
                                 ),
                               left:
                                 ghost.currentRect.page.left
-                                + (
-                                  nextPoint.page.x - ghost.currentPoint.page.x
+                                +. (
+                                  nextPoint.page.x -. ghost.currentPoint.page.x
                                 ),
                               right:
                                 ghost.currentRect.page.right
-                                + (
-                                  nextPoint.page.x - ghost.currentPoint.page.x
+                                +. (
+                                  nextPoint.page.x -. ghost.currentPoint.page.x
                                 ),
                             },
                           viewport:
                             Rect.{
                               top:
                                 ghost.currentRect.viewport.top
-                                + (
+                                +. (
                                   nextPoint.viewport.y
-                                  - ghost.currentPoint.viewport.y
+                                  -. ghost.currentPoint.viewport.y
                                 ),
                               bottom:
                                 ghost.currentRect.viewport.bottom
-                                + (
+                                +. (
                                   nextPoint.viewport.y
-                                  - ghost.currentPoint.viewport.y
+                                  -. ghost.currentPoint.viewport.y
                                 ),
                               left:
                                 ghost.currentRect.viewport.left
-                                + (
+                                +. (
                                   nextPoint.viewport.x
-                                  - ghost.currentPoint.viewport.x
+                                  -. ghost.currentPoint.viewport.x
                                 ),
                               right:
                                 ghost.currentRect.viewport.right
-                                + (
+                                +. (
                                   nextPoint.viewport.x
-                                  - ghost.currentPoint.viewport.x
+                                  -. ghost.currentPoint.viewport.x
                                 ),
                             },
                         };
@@ -406,8 +420,8 @@ module Make = (Cfg: Config) => {
                         currentRect: nextRect,
                         currentPoint: nextPoint,
                         delta: {
-                          x: nextPoint.page.x - ghost.departurePoint.page.x,
-                          y: nextPoint.page.y - ghost.departurePoint.page.y,
+                          x: nextPoint.page.x -. ghost.departurePoint.page.x,
+                          y: nextPoint.page.y -. ghost.departurePoint.page.y,
                         },
                       };
 
@@ -428,43 +442,47 @@ module Make = (Cfg: Config) => {
               switch (state.status) {
               | Dragging(ghost, _) =>
                 let scrollable =
-                  state.droppables^
-                  |. Map.reduce(
-                       None,
-                       (
-                         scrollable: option(ScrollableElement.t),
-                         _,
-                         droppable,
-                       ) =>
-                       switch (scrollable, droppable.scrollable) {
-                       | (Some(scrollable), Some(scrollable')) =>
-                         if (Geometry.contains(
-                               ~parent=scrollable'.geometry.rect.page,
-                               ~child=scrollable.geometry.rect.page,
-                             )) {
-                           Some(scrollable);
-                         } else {
-                           Some(scrollable');
-                         }
-                       | (None, Some(scrollable')) =>
-                         if (ghost.currentPoint.page
-                             |. Geometry.isWithin(
-                                  scrollable'.geometry.rect.page,
+                  (state.droppables^)
+                  ->(
+                      Map.reduce(
+                        None,
+                        (
+                          scrollable: option(ScrollableElement.t),
+                          _,
+                          droppable,
+                        ) =>
+                        switch (scrollable, droppable.scrollable) {
+                        | (Some(scrollable), Some(scrollable')) =>
+                          if (Geometry.contains(
+                                ~parent=scrollable'.geometry.rect.page,
+                                ~child=scrollable.geometry.rect.page,
+                              )) {
+                            Some(scrollable);
+                          } else {
+                            Some(scrollable');
+                          }
+                        | (None, Some(scrollable')) =>
+                          if (ghost.currentPoint.page
+                              ->(
+                                  Geometry.isWithin(
+                                    scrollable'.geometry.rect.page,
+                                  )
                                 )) {
-                           Some(scrollable');
-                         } else {
-                           None;
-                         }
-                       | (Some(scrollable), None) => Some(scrollable)
-                       | (None, None) => None
-                       }
-                     );
+                            Some(scrollable');
+                          } else {
+                            None;
+                          }
+                        | (Some(scrollable), None) => Some(scrollable)
+                        | (None, None) => None
+                        }
+                      )
+                    );
 
                 let scroller =
                   Scroller.getScroller(
                     ~point=ghost.currentPoint,
-                    ~viewport=state.viewport^ |. Option.getExn,
-                    ~scroll=state.scroll^ |. Option.getExn,
+                    ~viewport=(state.viewport^)->Option.getExn,
+                    ~scroll=(state.scroll^)->Option.getExn,
                     ~scrollable,
                   );
 
@@ -479,7 +497,7 @@ module Make = (Cfg: Config) => {
 
                   state.scheduledWindowScrollFrameId :=
                     requestWindowScroll(() => {
-                      let scroll = state.scroll^ |. Option.getExn;
+                      let scroll = (state.scroll^)->Option.getExn;
 
                       let nextScrollPosition =
                         Scrollable.Window.getScrollPosition();
@@ -489,8 +507,8 @@ module Make = (Cfg: Config) => {
                           ...scroll,
                           current: nextScrollPosition,
                           delta: {
-                            x: nextScrollPosition.x - scroll.initial.x,
-                            y: nextScrollPosition.y - scroll.initial.y,
+                            x: nextScrollPosition.x -. scroll.initial.x,
+                            y: nextScrollPosition.y -. scroll.initial.y,
                           },
                         };
 
@@ -500,12 +518,12 @@ module Make = (Cfg: Config) => {
                             Point.{
                               x:
                                 ghost.currentPoint.page.x
-                                + nextScroll.current.x
-                                - scroll.current.x,
+                                +. nextScroll.current.x
+                                -. scroll.current.x,
                               y:
                                 ghost.currentPoint.page.y
-                                + nextScroll.current.y
-                                - scroll.current.y,
+                                +. nextScroll.current.y
+                                -. scroll.current.y,
                             },
                           viewport:
                             Point.{
@@ -516,56 +534,62 @@ module Make = (Cfg: Config) => {
 
                       let delta =
                         Delta.{
-                          x: nextScrollPosition.x - scroll.current.x,
-                          y: nextScrollPosition.y - scroll.current.y,
+                          x: nextScrollPosition.x -. scroll.current.x,
+                          y: nextScrollPosition.y -. scroll.current.y,
                         };
 
                       state.droppables :=
-                        state.droppables^
-                        |. Map.map(droppable =>
-                             switch (droppable.scrollable) {
-                             | Some(scrollable) => {
-                                 ...droppable,
-                                 geometry:
-                                   droppable.geometry
-                                   |. Option.map(geometry =>
-                                        {
-                                          ...geometry,
-                                          rect:
-                                            geometry.rect
-                                            |> Geometry.shiftViewportRect(
-                                                 delta,
-                                               ),
-                                        }
+                        (state.droppables^)
+                        ->(
+                            Map.map(droppable =>
+                              switch (droppable.scrollable) {
+                              | Some(scrollable) => {
+                                  ...droppable,
+                                  geometry:
+                                    droppable.geometry
+                                    ->(
+                                        Option.map(geometry =>
+                                          {
+                                            ...geometry,
+                                            rect:
+                                              geometry.rect
+                                              |> Geometry.shiftViewportRect(
+                                                   delta,
+                                                 ),
+                                          }
+                                        )
                                       ),
-                                 scrollable:
-                                   Some({
-                                     ...scrollable,
-                                     geometry: {
-                                       ...scrollable.geometry,
-                                       rect:
-                                         scrollable.geometry.rect
-                                         |> Geometry.shiftViewportRect(delta),
-                                     },
-                                   }),
-                               }
-                             | None => {
-                                 ...droppable,
-                                 geometry:
-                                   droppable.geometry
-                                   |. Option.map(geometry =>
-                                        {
-                                          ...geometry,
-                                          rect:
-                                            geometry.rect
-                                            |> Geometry.shiftViewportRect(
-                                                 delta,
-                                               ),
-                                        }
+                                  scrollable:
+                                    Some({
+                                      ...scrollable,
+                                      geometry: {
+                                        ...scrollable.geometry,
+                                        rect:
+                                          scrollable.geometry.rect
+                                          |> Geometry.shiftViewportRect(delta),
+                                      },
+                                    }),
+                                }
+                              | None => {
+                                  ...droppable,
+                                  geometry:
+                                    droppable.geometry
+                                    ->(
+                                        Option.map(geometry =>
+                                          {
+                                            ...geometry,
+                                            rect:
+                                              geometry.rect
+                                              |> Geometry.shiftViewportRect(
+                                                   delta,
+                                                 ),
+                                          }
+                                        )
                                       ),
-                               }
-                             }
-                           );
+                                }
+                              }
+                            )
+                          );
 
                       state.scroll := Some(nextScroll);
 
@@ -594,64 +618,70 @@ module Make = (Cfg: Config) => {
                             Delta.{
                               x:
                                 nextScrollPosition.x
-                                - scrollable.scroll.initial.x,
+                                -. scrollable.scroll.initial.x,
                               y:
                                 nextScrollPosition.y
-                                - scrollable.scroll.initial.y,
+                                -. scrollable.scroll.initial.y,
                             },
                         };
 
                       let delta =
                         Delta.{
                           x:
-                            nextScrollPosition.x - scrollable.scroll.current.x,
+                            nextScrollPosition.x -. scrollable.scroll.current.x,
                           y:
-                            nextScrollPosition.y - scrollable.scroll.current.y,
+                            nextScrollPosition.y -. scrollable.scroll.current.y,
                         };
 
                       state.droppables :=
-                        state.droppables^
-                        |. Map.map(droppable =>
-                             switch (droppable.scrollable) {
-                             | Some(scrollable')
-                                 when
-                                   scrollable'.element === scrollable.element => {
-                                 ...droppable,
-                                 geometry:
-                                   droppable.geometry
-                                   |. Option.map(geometry =>
-                                        {
-                                          ...geometry,
-                                          rect:
-                                            geometry.rect
-                                            |> Geometry.shiftRects(delta),
-                                        }
+                        (state.droppables^)
+                        ->(
+                            Map.map(droppable =>
+                              switch (droppable.scrollable) {
+                              | Some(scrollable')
+                                  when
+                                    scrollable'.element === scrollable.element => {
+                                  ...droppable,
+                                  geometry:
+                                    droppable.geometry
+                                    ->(
+                                        Option.map(geometry =>
+                                          {
+                                            ...geometry,
+                                            rect:
+                                              geometry.rect
+                                              |> Geometry.shiftRects(delta),
+                                          }
+                                        )
                                       ),
-                                 scrollable:
-                                   Some({...scrollable, scroll: nextScroll}),
-                               }
-                             | Some(scrollable')
-                                 when
-                                   Geometry.contains(
-                                     ~parent=scrollable.geometry.rect.page,
-                                     ~child=scrollable'.geometry.rect.page,
-                                   ) => {
-                                 ...droppable,
-                                 geometry:
-                                   droppable.geometry
-                                   |. Option.map(geometry =>
-                                        {
-                                          ...geometry,
-                                          rect:
-                                            geometry.rect
-                                            |> Geometry.shiftRects(delta),
-                                        }
+                                  scrollable:
+                                    Some({...scrollable, scroll: nextScroll}),
+                                }
+                              | Some(scrollable')
+                                  when
+                                    Geometry.contains(
+                                      ~parent=scrollable.geometry.rect.page,
+                                      ~child=scrollable'.geometry.rect.page,
+                                    ) => {
+                                  ...droppable,
+                                  geometry:
+                                    droppable.geometry
+                                    ->(
+                                        Option.map(geometry =>
+                                          {
+                                            ...geometry,
+                                            rect:
+                                              geometry.rect
+                                              |> Geometry.shiftRects(delta),
+                                          }
+                                        )
                                       ),
-                               }
-                             | Some(_)
-                             | None => droppable
-                             }
-                           );
+                                }
+                              | Some(_)
+                              | None => droppable
+                              }
+                            )
+                          );
 
                       state.scheduledLayoutRecalculationFrameId :=
                         Some(
@@ -677,167 +707,180 @@ module Make = (Cfg: Config) => {
             switch (ghost.targetDroppable) {
             | None =>
               let draggables =
-                state.draggables^
-                |. Map.map(draggable => {...draggable, shift: None});
+                (state.draggables^)
+                ->(Map.map(draggable => {...draggable, shift: None}));
               (draggables, []);
             | Some(targetDroppableId) =>
               let droppable =
-                state.droppables^ |. Map.getExn(targetDroppableId);
+                (state.droppables^)->(Map.getExn(targetDroppableId));
 
-              state.draggables^
-              |. Map.reduce(
-                   (state.draggables^, []),
-                   ((draggables, animate), id, draggable) =>
-                   switch (draggable.droppableId) {
-                   | draggableDroppableId
-                       when
-                         Cfg.Droppable.eq(
-                           targetDroppableId,
-                           draggableDroppableId,
-                         )
-                         && ghost.targetingOriginalDroppable =>
-                     let geometry = draggable.geometry |. Option.getExn;
-                     let scroll = state.scroll^ |. Option.getExn;
+              (state.draggables^)
+              ->(
+                  Map.reduce(
+                    (state.draggables^, []),
+                    ((draggables, animate), id, draggable) =>
+                    switch (draggable.droppableId) {
+                    | draggableDroppableId
+                        when
+                          Cfg.Droppable.eq(
+                            targetDroppableId,
+                            draggableDroppableId,
+                          )
+                          && ghost.targetingOriginalDroppable =>
+                      let geometry = draggable.geometry->Option.getExn;
+                      let scroll = (state.scroll^)->Option.getExn;
 
-                     let shiftedDraggableRect =
-                       Geometry.shiftInternalSibling(
-                         ghost.axis,
-                         ghost.dimensions,
-                         geometry,
-                         scroll,
-                         droppable.scrollable,
-                         draggable.shift,
-                       );
-                     let isAfore =
-                       Geometry.isAforeAdjusted(
-                         ~subject=ghost.currentRect.page,
-                         ~comparand=shiftedDraggableRect.page,
-                         ~axis=ghost.axis,
-                         ~direction=ghost.direction,
-                       );
-                     let wasAfore =
-                       Geometry.isAfore(
-                         ~subject=ghost.departureRect.page,
-                         ~comparand=geometry.rect.page,
-                         ~axis=ghost.axis,
-                       );
-                     switch (draggable.shift, isAfore, wasAfore) {
-                     /* Dragging this one, no changes here */
-                     | (_, _, _)
-                         when
-                           Cfg.Draggable.eq(draggable.id, ghost.draggableId) => (
-                         draggables,
-                         animate,
-                       )
-                     /* This one is in the middle of transition, ignoring */
-                     | (_, _, _) when draggable.animating => (
-                         draggables,
-                         animate,
-                       )
-                     /* Ghost is above but initially was below: since it's already Omega - ignoring */
-                     | (Some(Omega), true, false) => (draggables, animate)
-                     /* Ghost is above but initially was below: adding to animating list since it's going to be animated on the next render */
-                     | (_, true, false) => (
-                         draggables
-                         |. Map.set(
-                              id,
-                              {
-                                ...draggable,
-                                shift: Some(Omega),
-                                animating: true,
-                              },
+                      let shiftedDraggableRect =
+                        Geometry.shiftInternalSibling(
+                          ghost.axis,
+                          ghost.dimensions,
+                          geometry,
+                          scroll,
+                          droppable.scrollable,
+                          draggable.shift,
+                        );
+                      let isAfore =
+                        Geometry.isAforeAdjusted(
+                          ~subject=ghost.currentRect.page,
+                          ~comparand=shiftedDraggableRect.page,
+                          ~axis=ghost.axis,
+                          ~direction=ghost.direction,
+                        );
+                      let wasAfore =
+                        Geometry.isAfore(
+                          ~subject=ghost.departureRect.page,
+                          ~comparand=geometry.rect.page,
+                          ~axis=ghost.axis,
+                        );
+                      switch (draggable.shift, isAfore, wasAfore) {
+                      /* Dragging this one, no changes here */
+                      | (_, _, _)
+                          when
+                            Cfg.Draggable.eq(draggable.id, ghost.draggableId) => (
+                          draggables,
+                          animate,
+                        )
+                      /* This one is in the middle of transition, ignoring */
+                      | (_, _, _) when draggable.animating => (
+                          draggables,
+                          animate,
+                        )
+                      /* Ghost is above but initially was below: since it's already Omega  -. ignoring */
+                      | (Some(Omega), true, false) => (draggables, animate)
+                      /* Ghost is above but initially was below: adding to animating list since it's going to be animated on the next render */
+                      | (_, true, false) => (
+                          draggables
+                          ->(
+                              Map.set(
+                                id,
+                                {
+                                  ...draggable,
+                                  shift: Some(Omega),
+                                  animating: true,
+                                },
+                              )
                             ),
-                         [id, ...animate],
-                       )
-                     /* Ghost is below but initially was above: since it's already Alpha - ignoring */
-                     | (Some(Alpha), false, true) => (draggables, animate)
-                     /* Ghost is below but initially was above: adding to animating list since it's going to be animated on the next render */
-                     | (_, false, true) => (
-                         draggables
-                         |. Map.set(
-                              id,
-                              {
-                                ...draggable,
-                                shift: Some(Alpha),
-                                animating: true,
-                              },
+                          [id, ...animate],
+                        )
+                      /* Ghost is below but initially was above: since it's already Alpha  -. ignoring */
+                      | (Some(Alpha), false, true) => (draggables, animate)
+                      /* Ghost is below but initially was above: adding to animating list since it's going to be animated on the next render */
+                      | (_, false, true) => (
+                          draggables
+                          ->(
+                              Map.set(
+                                id,
+                                {
+                                  ...draggable,
+                                  shift: Some(Alpha),
+                                  animating: true,
+                                },
+                              )
                             ),
-                         [id, ...animate],
-                       )
-                     /* If we got here, draggable should go to original position: if it was shifted — animating it */
-                     | (Some(_), _, _) => (
-                         draggables
-                         |. Map.set(
-                              id,
-                              {...draggable, shift: None, animating: true},
+                          [id, ...animate],
+                        )
+                      /* If we got here, draggable should go to original position: if it was shifted — animating it */
+                      | (Some(_), _, _) => (
+                          draggables
+                          ->(
+                              Map.set(
+                                id,
+                                {...draggable, shift: None, animating: true},
+                              )
                             ),
-                         [id, ...animate],
-                       )
-                     /* Draggable is in original position, no updates required */
-                     | (None, _, _) => (draggables, animate)
-                     };
+                          [id, ...animate],
+                        )
+                      /* Draggable is in original position, no updates required */
+                      | (None, _, _) => (draggables, animate)
+                      };
 
-                   | draggableDroppableId
-                       when
-                         Cfg.Droppable.eq(
-                           targetDroppableId,
-                           draggableDroppableId,
-                         )
-                         && ! ghost.targetingOriginalDroppable =>
-                     let geometry = draggable.geometry |. Option.getExn;
-                     let scroll = state.scroll^ |. Option.getExn;
+                    | draggableDroppableId
+                        when
+                          Cfg.Droppable.eq(
+                            targetDroppableId,
+                            draggableDroppableId,
+                          )
+                          && !ghost.targetingOriginalDroppable =>
+                      let geometry = draggable.geometry->Option.getExn;
+                      let scroll = (state.scroll^)->Option.getExn;
 
-                     let shiftedDraggableRect =
-                       Geometry.shiftExternalSibling(
-                         ghost.axis,
-                         ghost.dimensions,
-                         geometry,
-                         scroll,
-                         droppable.scrollable,
-                         draggable.shift,
-                       );
-                     let isAfore =
-                       Geometry.isAforeAdjusted(
-                         ~subject=ghost.currentRect.page,
-                         ~comparand=shiftedDraggableRect.page,
-                         ~axis=ghost.axis,
-                         ~direction=ghost.direction,
-                       );
-                     switch (draggable.animating, draggable.shift, isAfore) {
-                     | (true, _, _) => (draggables, animate)
-                     | (false, Some(Omega), true) => (draggables, animate)
-                     | (false, _, true) => (
-                         draggables
-                         |. Map.set(
-                              id,
-                              {
-                                ...draggable,
-                                shift: Some(Omega),
-                                animating: true,
-                              },
+                      let shiftedDraggableRect =
+                        Geometry.shiftExternalSibling(
+                          ghost.axis,
+                          ghost.dimensions,
+                          geometry,
+                          scroll,
+                          droppable.scrollable,
+                          draggable.shift,
+                        );
+                      let isAfore =
+                        Geometry.isAforeAdjusted(
+                          ~subject=ghost.currentRect.page,
+                          ~comparand=shiftedDraggableRect.page,
+                          ~axis=ghost.axis,
+                          ~direction=ghost.direction,
+                        );
+                      switch (draggable.animating, draggable.shift, isAfore) {
+                      | (true, _, _) => (draggables, animate)
+                      | (false, Some(Omega), true) => (draggables, animate)
+                      | (false, _, true) => (
+                          draggables
+                          ->(
+                              Map.set(
+                                id,
+                                {
+                                  ...draggable,
+                                  shift: Some(Omega),
+                                  animating: true,
+                                },
+                              )
                             ),
-                         [id, ...animate],
-                       )
-                     | (false, Some(Alpha), false) => (draggables, animate)
-                     | (false, _, false) => (
-                         draggables
-                         |. Map.set(
-                              id,
-                              {
-                                ...draggable,
-                                shift: Some(Alpha),
-                                animating: true,
-                              },
+                          [id, ...animate],
+                        )
+                      | (false, Some(Alpha), false) => (draggables, animate)
+                      | (false, _, false) => (
+                          draggables
+                          ->(
+                              Map.set(
+                                id,
+                                {
+                                  ...draggable,
+                                  shift: Some(Alpha),
+                                  animating: true,
+                                },
+                              )
                             ),
-                         [id, ...animate],
-                       )
-                     };
-                   | _ => (
-                       draggables |. Map.set(id, {...draggable, shift: None}),
-                       animate,
-                     )
-                   }
-                 );
+                          [id, ...animate],
+                        )
+                      };
+                    | _ => (
+                        draggables
+                        ->(Map.set(id, {...draggable, shift: None})),
+                        animate,
+                      )
+                    }
+                  )
+                );
             };
 
           ReasonReact.UpdateWithSideEffects(
@@ -870,18 +913,25 @@ module Make = (Cfg: Config) => {
               ({state}) =>
                 state.draggables :=
                   ids
-                  |. List.reduceU(state.draggables^, (. map, id) =>
-                       map
-                       |. Map.updateU(id, (. draggable) =>
-                            switch (draggable) {
-                            | Some(draggable) =>
-                              Some(
-                                DraggableBag.{...draggable, animating: false},
-                              )
-                            | None => None
-                            }
+                  ->(
+                      List.reduceU(state.draggables^, (. map, id) =>
+                        map
+                        ->(
+                            Map.updateU(id, (. draggable) =>
+                              switch (draggable) {
+                              | Some(draggable) =>
+                                Some(
+                                  DraggableBag.{
+                                    ...draggable,
+                                    animating: false,
+                                  },
+                                )
+                              | None => None
+                              }
+                            )
                           )
-                     )
+                      )
+                    )
             ),
           )
         }
@@ -921,7 +971,7 @@ module Make = (Cfg: Config) => {
             switch (ghost.targetDroppable) {
             | None =>
               let droppable =
-                state.droppables^ |. Map.getExn(ghost.originalDroppable);
+                (state.droppables^)->(Map.getExn(ghost.originalDroppable));
               let scrollableDelta =
                 switch (droppable) {
                 | {scrollable: Some(scrollable)} =>
@@ -929,14 +979,14 @@ module Make = (Cfg: Config) => {
                     x: scrollable.scroll.delta.x,
                     y: scrollable.scroll.delta.y,
                   }
-                | {scrollable: None} => Delta.{x: 0, y: 0}
+                | {scrollable: None} => Delta.{x: 0.0, y: 0.0}
                 };
               let nextGhost = {
                 ...ghost,
                 delta:
                   switch (ghost.axis) {
-                  | X => {x: 0 - scrollableDelta.x, y: 0}
-                  | Y => {x: 0, y: 0 - scrollableDelta.y}
+                  | X => {x: 0.0 -. scrollableDelta.x, y: 0.0}
+                  | Y => {x: 0.0, y: 0.0 -. scrollableDelta.y}
                   },
               };
 
@@ -944,8 +994,8 @@ module Make = (Cfg: Config) => {
 
             | Some(targetDroppableId) when ghost.targetingOriginalDroppable =>
               let droppable =
-                state.droppables^ |. Map.getExn(targetDroppableId);
-              let scroll = state.scroll^ |. Option.getExn;
+                (state.droppables^)->(Map.getExn(targetDroppableId));
+              let scroll = (state.scroll^)->Option.getExn;
               let scrollableDelta =
                 switch (droppable) {
                 | {scrollable: Some(scrollable)} =>
@@ -953,80 +1003,94 @@ module Make = (Cfg: Config) => {
                     x: scrollable.scroll.delta.x,
                     y: scrollable.scroll.delta.y,
                   }
-                | {scrollable: None} => Delta.{x: 0, y: 0}
+                | {scrollable: None} => Delta.{x: 0.0, y: 0.0}
                 };
 
               let sortedDraggables =
-                state.draggables^
-                |. Map.keep((_, draggable) =>
-                     Cfg.Droppable.eq(
-                       draggable.droppableId,
-                       targetDroppableId,
-                     )
-                   )
-                |. Map.reduce(
-                     [||],
-                     (acc, id, draggable) => {
-                       let geometry = draggable.geometry |. Option.getExn;
+                (state.draggables^)
+                ->(
+                    Map.keep((_, draggable) =>
+                      Cfg.Droppable.eq(
+                        draggable.droppableId,
+                        targetDroppableId,
+                      )
+                    )
+                  )
+                ->(
+                    Map.reduce(
+                      [||],
+                      (acc, id, draggable) => {
+                        let geometry = draggable.geometry->Option.getExn;
 
-                       if (Cfg.Draggable.eq(id, ghost.draggableId)) {
-                         acc
-                         |. Array.concat([|
-                              DropResult.{
-                                id,
-                                trait: Ghost,
-                                rect: ghost.currentRect,
-                                margins: geometry.margins,
-                              },
-                            |]);
-                       } else {
-                         acc
-                         |. Array.concat([|
-                              {
-                                id,
-                                trait: Item(draggable.shift),
-                                rect:
-                                  Geometry.shiftInternalSibling(
-                                    ghost.axis,
-                                    ghost.dimensions,
-                                    geometry,
-                                    scroll,
-                                    droppable.scrollable,
-                                    draggable.shift,
-                                  ),
-                                margins: geometry.margins,
-                              },
-                            |]);
-                       };
-                     },
-                   )
-                |. SortArray.stableSortBy((d1, d2) =>
-                     switch (d1.trait, d2.trait, ghost.axis) {
-                     | (Ghost, Item(Some(Alpha)), _) => 1
-                     | (Ghost, Item(Some(Omega)), _) => (-1)
-                     | (Ghost, Item(None), X) =>
-                       ghost.departureRect.page.left
-                       - (d2.rect.page.left + scrollableDelta.x)
-                     | (Ghost, Item(None), Y) =>
-                       ghost.departureRect.page.top
-                       - (d2.rect.page.top + scrollableDelta.y)
-                     | (Item(Some(Alpha)), Ghost, _) => (-1)
-                     | (Item(Some(Omega)), Ghost, _) => 1
-                     | (Item(None), Ghost, X) =>
-                       d1.rect.page.left
-                       + scrollableDelta.x
-                       - ghost.departureRect.page.left
-                     | (Item(None), Ghost, Y) =>
-                       d1.rect.page.top
-                       + scrollableDelta.y
-                       - ghost.departureRect.page.top
-                     | (Item(_), Item(_), X) =>
-                       d1.rect.page.left - d2.rect.page.left
-                     | (Item(_), Item(_), Y) =>
-                       d1.rect.page.top - d2.rect.page.top
-                     | (Ghost, Ghost, _) => 0 /* impossible */
-                     }
-                   );
+                        if (Cfg.Draggable.eq(id, ghost.draggableId)) {
+                          acc
+                          ->(
+                              Array.concat([|
+                                DropResult.{
+                                  id,
+                                  trait: Ghost,
+                                  rect: ghost.currentRect,
+                                  margins: geometry.margins,
+                                },
+                              |])
+                            );
+                        } else {
+                          acc
+                          ->(
+                              Array.concat([|
+                                {
+                                  id,
+                                  trait: Item(draggable.shift),
+                                  rect:
+                                    Geometry.shiftInternalSibling(
+                                      ghost.axis,
+                                      ghost.dimensions,
+                                      geometry,
+                                      scroll,
+                                      droppable.scrollable,
+                                      draggable.shift,
+                                    ),
+                                  margins: geometry.margins,
+                                },
+                              |])
+                            );
+                        };
+                      },
+                    )
+                  )
+                ->(
+                    SortArray.stableSortBy((d1, d2) =>
+                      switch (d1.trait, d2.trait, ghost.axis) {
+                      | (Ghost, Item(Some(Alpha)), _) => 1
+                      | (Ghost, Item(Some(Omega)), _) => (-1)
+                      | (Ghost, Item(None), X) =>
+                        ghost.departureRect.page.left
+                        -. (d2.rect.page.left +. scrollableDelta.x)
+                        |> int_of_float
+                      | (Ghost, Item(None), Y) =>
+                        ghost.departureRect.page.top
+                        -. (d2.rect.page.top +. scrollableDelta.y)
+                        |> int_of_float
+                      | (Item(Some(Alpha)), Ghost, _) => (-1)
+                      | (Item(Some(Omega)), Ghost, _) => 1
+                      | (Item(None), Ghost, X) =>
+                        d1.rect.page.left
+                        +. scrollableDelta.x
+                        -. ghost.departureRect.page.left
+                        |> int_of_float
+                      | (Item(None), Ghost, Y) =>
+                        d1.rect.page.top
+                        +. scrollableDelta.y
+                        -. ghost.departureRect.page.top
+                        |> int_of_float
+                      | (Item(_), Item(_), X) =>
+                        d1.rect.page.left -. d2.rect.page.left |> int_of_float
+                      | (Item(_), Item(_), Y) =>
+                        d1.rect.page.top -. d2.rect.page.top |> int_of_float
+                      | (Ghost, Ghost, _) => 0 /* impossible */
+                      }
+                    )
+                  );
 
               let ghostIndex =
                 sortedDraggables
@@ -1039,7 +1103,7 @@ module Make = (Cfg: Config) => {
                      )
                    );
 
-              switch (sortedDraggables |. Array.get(ghostIndex - 1)) {
+              switch (sortedDraggables->(Array.get(ghostIndex - 1))) {
               | Some(draggable) => (
                   {
                     ...ghost,
@@ -1050,41 +1114,41 @@ module Make = (Cfg: Config) => {
                             /* To the right bound of the neighbour on the left */
                             draggable.rect.page.right
                             /* add its right and ghost's left margins */
-                            + (draggable.margins.right + ghost.margins.left)
+                            +. (draggable.margins.right +. ghost.margins.left)
                             /* add distance between the pointer and ghost's left bound */
-                            + (
+                            +. (
                               ghost.departurePoint.page.x
-                              - ghost.departureRect.page.left
+                              -. ghost.departureRect.page.left
                             )
                             /* finally, substract distance from the left side of the page */
-                            - ghost.departurePoint.page.x,
-                          y: 0,
+                            -. ghost.departurePoint.page.x,
+                          y: 0.0,
                         }
                       | Y => {
-                          x: 0,
+                          x: 0.0,
                           y:
                             /* To the bottom bound of the neighbour above */
                             draggable.rect.page.bottom
                             /* add its bottom and ghost's top margins */
-                            + (draggable.margins.bottom + ghost.margins.top)
+                            +. (draggable.margins.bottom +. ghost.margins.top)
                             /* add distance between the pointer and ghost's top bound */
-                            + (
+                            +. (
                               ghost.departurePoint.page.y
-                              - ghost.departureRect.page.top
+                              -. ghost.departureRect.page.top
                             )
                             /* finally, substract distance from the top of the page */
-                            - ghost.departurePoint.page.y,
+                            -. ghost.departurePoint.page.y,
                         }
                       },
                   },
                   SameTarget(
                     ghost.draggableId,
                     targetDroppableId,
-                    sortedDraggables |. Array.map(item => item.id),
+                    sortedDraggables->(Array.map(item => item.id)),
                   ),
                 )
               | None =>
-                switch (sortedDraggables |. Array.get(ghostIndex + 1)) {
+                switch (sortedDraggables->(Array.get(ghostIndex + 1))) {
                 | Some(draggable) => (
                     {
                       ...ghost,
@@ -1095,44 +1159,48 @@ module Make = (Cfg: Config) => {
                               /* From the left bound of the neighbour on the right */
                               draggable.rect.page.left
                               /* substract its left and ghost's right margins */
-                              - (draggable.margins.left + ghost.margins.right)
+                              -. (
+                                draggable.margins.left +. ghost.margins.right
+                              )
                               /* substract distance between ghost's right bound and the pointer */
-                              - (
+                              -. (
                                 ghost.departureRect.page.right
-                                - ghost.departurePoint.page.x
+                                -. ghost.departurePoint.page.x
                               )
                               /* finally, substract distance from the left side of the page */
-                              - ghost.departurePoint.page.x,
-                            y: 0,
+                              -. ghost.departurePoint.page.x,
+                            y: 0.0,
                           }
                         | Y => {
-                            x: 0,
+                            x: 0.0,
                             y:
                               /* From the top bound of the neighbour below */
                               draggable.rect.page.top
                               /* substract its top and ghost's bottom margins */
-                              - (draggable.margins.top + ghost.margins.bottom)
+                              -. (
+                                draggable.margins.top +. ghost.margins.bottom
+                              )
                               /* substract distance between ghost's bottom bound and the pointer */
-                              - (
+                              -. (
                                 ghost.departureRect.page.bottom
-                                - ghost.departurePoint.page.y
+                                -. ghost.departurePoint.page.y
                               )
                               /* finally, substract distance from the top of the page */
-                              - ghost.departurePoint.page.y,
+                              -. ghost.departurePoint.page.y,
                           }
                         },
                     },
                     SameTarget(
                       ghost.draggableId,
                       targetDroppableId,
-                      sortedDraggables |. Array.map(item => item.id),
+                      sortedDraggables->(Array.map(item => item.id)),
                     ),
                   )
                 | None => ({
                              ...ghost,
                              delta: {
-                               x: 0,
-                               y: 0,
+                               x: 0.0,
+                               y: 0.0,
                              },
                            }, NoChanges)
                 }
@@ -1140,8 +1208,8 @@ module Make = (Cfg: Config) => {
 
             | Some(targetDroppableId) =>
               let droppable =
-                state.droppables^ |. Map.getExn(targetDroppableId);
-              let scroll = state.scroll^ |. Option.getExn;
+                (state.droppables^)->(Map.getExn(targetDroppableId));
+              let scroll = (state.scroll^)->Option.getExn;
               let scrollableDelta =
                 switch (droppable) {
                 | {scrollable: Some(scrollable)} =>
@@ -1149,69 +1217,79 @@ module Make = (Cfg: Config) => {
                     x: scrollable.scroll.delta.x,
                     y: scrollable.scroll.delta.y,
                   }
-                | {scrollable: None} => Delta.{x: 0, y: 0}
+                | {scrollable: None} => Delta.{x: 0.0, y: 0.0}
                 };
 
               let sortedDraggables =
-                state.draggables^
-                |. Map.keep((_, draggable) =>
-                     Cfg.Droppable.eq(
-                       draggable.droppableId,
-                       targetDroppableId,
-                     )
-                     || Cfg.Draggable.eq(draggable.id, ghost.draggableId)
-                   )
-                |. Map.reduce(
-                     [||],
-                     (acc, id, draggable) => {
-                       let geometry = draggable.geometry |. Option.getExn;
+                (state.draggables^)
+                ->(
+                    Map.keep((_, draggable) =>
+                      Cfg.Droppable.eq(
+                        draggable.droppableId,
+                        targetDroppableId,
+                      )
+                      || Cfg.Draggable.eq(draggable.id, ghost.draggableId)
+                    )
+                  )
+                ->(
+                    Map.reduce(
+                      [||],
+                      (acc, id, draggable) => {
+                        let geometry = draggable.geometry->Option.getExn;
 
-                       if (Cfg.Draggable.eq(id, ghost.draggableId)) {
-                         acc
-                         |. Array.concat([|
-                              DropResult.{
-                                id,
-                                trait: Ghost,
-                                rect: ghost.currentRect,
-                                margins: geometry.margins,
-                              },
-                            |]);
-                       } else {
-                         acc
-                         |. Array.concat([|
-                              {
-                                id,
-                                trait: Item(draggable.shift),
-                                rect:
-                                  Geometry.shiftExternalSibling(
-                                    ghost.axis,
-                                    ghost.dimensions,
-                                    geometry,
-                                    scroll,
-                                    droppable.scrollable,
-                                    draggable.shift,
-                                  ),
-                                margins: geometry.margins,
-                              },
-                            |]);
-                       };
-                     },
-                   )
-                |. SortArray.stableSortBy((d1, d2) =>
-                     switch (d1.trait, d2.trait, ghost.axis) {
-                     | (Ghost, Item(Some(Alpha)), _) => 1
-                     | (Ghost, Item(Some(Omega)), _) => (-1)
-                     | (Ghost, Item(None), _) => 1
-                     | (Item(Some(Alpha)), Ghost, _) => (-1)
-                     | (Item(Some(Omega)), Ghost, _) => 1
-                     | (Item(None), Ghost, _) => (-1)
-                     | (Item(_), Item(_), X) =>
-                       d1.rect.page.left - d2.rect.page.left
-                     | (Item(_), Item(_), Y) =>
-                       d1.rect.page.top - d2.rect.page.top
-                     | (Ghost, Ghost, _) => 0 /* impossible */
-                     }
-                   );
+                        if (Cfg.Draggable.eq(id, ghost.draggableId)) {
+                          acc
+                          ->(
+                              Array.concat([|
+                                DropResult.{
+                                  id,
+                                  trait: Ghost,
+                                  rect: ghost.currentRect,
+                                  margins: geometry.margins,
+                                },
+                              |])
+                            );
+                        } else {
+                          acc
+                          ->(
+                              Array.concat([|
+                                {
+                                  id,
+                                  trait: Item(draggable.shift),
+                                  rect:
+                                    Geometry.shiftExternalSibling(
+                                      ghost.axis,
+                                      ghost.dimensions,
+                                      geometry,
+                                      scroll,
+                                      droppable.scrollable,
+                                      draggable.shift,
+                                    ),
+                                  margins: geometry.margins,
+                                },
+                              |])
+                            );
+                        };
+                      },
+                    )
+                  )
+                ->(
+                    SortArray.stableSortBy((d1, d2) =>
+                      switch (d1.trait, d2.trait, ghost.axis) {
+                      | (Ghost, Item(Some(Alpha)), _) => 1
+                      | (Ghost, Item(Some(Omega)), _) => (-1)
+                      | (Ghost, Item(None), _) => 1
+                      | (Item(Some(Alpha)), Ghost, _) => (-1)
+                      | (Item(Some(Omega)), Ghost, _) => 1
+                      | (Item(None), Ghost, _) => (-1)
+                      | (Item(_), Item(_), X) =>
+                        d1.rect.page.left -. d2.rect.page.left |> int_of_float
+                      | (Item(_), Item(_), Y) =>
+                        d1.rect.page.top -. d2.rect.page.top |> int_of_float
+                      | (Ghost, Ghost, _) => 0 /* impossible */
+                      }
+                    )
+                  );
 
               let ghostIndex =
                 sortedDraggables
@@ -1224,7 +1302,7 @@ module Make = (Cfg: Config) => {
                      )
                    );
 
-              switch (sortedDraggables |. Array.get(ghostIndex - 1)) {
+              switch (sortedDraggables->(Array.get(ghostIndex - 1))) {
               | Some(draggable) => (
                   {
                     ...ghost,
@@ -1235,47 +1313,47 @@ module Make = (Cfg: Config) => {
                             /* To the right bound of the neighbour on the left */
                             draggable.rect.page.right
                             /* add its right and ghost's left margins */
-                            + (draggable.margins.right + ghost.margins.left)
+                            +. (draggable.margins.right +. ghost.margins.left)
                             /* add distance between the pointer and ghost's left bound */
-                            + (
+                            +. (
                               ghost.departurePoint.page.x
-                              - ghost.departureRect.page.left
+                              -. ghost.departureRect.page.left
                             )
                             /* finally, substract distance from the left side of the page */
-                            - ghost.departurePoint.page.x,
+                            -. ghost.departurePoint.page.x,
                           y:
                             draggable.rect.page.top
-                            - ghost.departureRect.page.top
-                            - (scroll.delta.y + scrollableDelta.y),
+                            -. ghost.departureRect.page.top
+                            -. (scroll.delta.y +. scrollableDelta.y),
                         }
                       | Y => {
                           x:
                             draggable.rect.page.left
-                            - ghost.departureRect.page.left
-                            - (scroll.delta.x + scrollableDelta.x),
+                            -. ghost.departureRect.page.left
+                            -. (scroll.delta.x +. scrollableDelta.x),
                           y:
                             /* To the bottom bound of the neighbour above */
                             draggable.rect.page.bottom
                             /* add its bottom and ghost's top margins */
-                            + (draggable.margins.bottom + ghost.margins.top)
+                            +. (draggable.margins.bottom +. ghost.margins.top)
                             /* add distance between the pointer and ghost's top bound */
-                            + (
+                            +. (
                               ghost.departurePoint.page.y
-                              - ghost.departureRect.page.top
+                              -. ghost.departureRect.page.top
                             )
                             /* finally, substract distance from the top of the page */
-                            - ghost.departurePoint.page.y,
+                            -. ghost.departurePoint.page.y,
                         }
                       },
                   },
                   NewTarget(
                     ghost.draggableId,
                     {prev: ghost.originalDroppable, next: targetDroppableId},
-                    sortedDraggables |. Array.map(item => item.id),
+                    sortedDraggables->(Array.map(item => item.id)),
                   ),
                 )
               | None =>
-                switch (sortedDraggables |. Array.get(ghostIndex + 1)) {
+                switch (sortedDraggables->(Array.get(ghostIndex + 1))) {
                 | Some(draggable) => (
                     {
                       ...ghost,
@@ -1286,36 +1364,40 @@ module Make = (Cfg: Config) => {
                               /* From the left bound of the neighbour on the right */
                               draggable.rect.page.left
                               /* substract its left and ghost's right margins */
-                              - (draggable.margins.left + ghost.margins.right)
+                              -. (
+                                draggable.margins.left +. ghost.margins.right
+                              )
                               /* substract distance between ghost's right bound and the pointer */
-                              - (
+                              -. (
                                 ghost.departureRect.page.right
-                                - ghost.departurePoint.page.x
+                                -. ghost.departurePoint.page.x
                               )
                               /* finally, substract distance from the left side of the page */
-                              - ghost.departurePoint.page.x,
+                              -. ghost.departurePoint.page.x,
                             y:
                               draggable.rect.page.top
-                              - ghost.departureRect.page.top
-                              - (scroll.delta.y + scrollableDelta.y),
+                              -. ghost.departureRect.page.top
+                              -. (scroll.delta.y +. scrollableDelta.y),
                           }
                         | Y => {
                             x:
                               draggable.rect.page.left
-                              - ghost.departureRect.page.left
-                              - (scroll.delta.x + scrollableDelta.x),
+                              -. ghost.departureRect.page.left
+                              -. (scroll.delta.x +. scrollableDelta.x),
                             y:
                               /* From the top bound of the neighbour below */
                               draggable.rect.page.top
                               /* substract its top and ghost's bottom margins */
-                              - (draggable.margins.top + ghost.margins.bottom)
+                              -. (
+                                draggable.margins.top +. ghost.margins.bottom
+                              )
                               /* substract distance between ghost's bottom bound and the pointer */
-                              - (
+                              -. (
                                 ghost.departureRect.page.bottom
-                                - ghost.departurePoint.page.y
+                                -. ghost.departurePoint.page.y
                               )
                               /* finally, substract distance from the top of the page */
-                              - ghost.departurePoint.page.y,
+                              -. ghost.departurePoint.page.y,
                           }
                         },
                     },
@@ -1325,7 +1407,7 @@ module Make = (Cfg: Config) => {
                         prev: ghost.originalDroppable,
                         next: targetDroppableId,
                       },
-                      sortedDraggables |. Array.map(item => item.id),
+                      sortedDraggables->(Array.map(item => item.id)),
                     ),
                   )
 
@@ -1333,7 +1415,7 @@ module Make = (Cfg: Config) => {
                 | None =>
                   let droppable =
                     Map.getExn(state.droppables^, targetDroppableId).geometry
-                    |. Option.getExn;
+                    ->Option.getExn;
                   (
                     {
                       ...ghost,
@@ -1344,67 +1426,67 @@ module Make = (Cfg: Config) => {
                               /* From the right bound of the droppable */
                               droppable.rect.page.right
                               /* substract the right border and padding of droppable */
-                              - (
+                              -. (
                                 droppable.borders.right
-                                + droppable.paddings.right
+                                +. droppable.paddings.right
                               )
                               /* substract distance between ghost's right bound and the pointer */
-                              - (
+                              -. (
                                 ghost.departureRect.page.right
-                                - ghost.departurePoint.page.x
+                                -. ghost.departurePoint.page.x
                               )
                               /* add ghost's width since ghost pushed the right side of the droppable to the left */
-                              + ghost.dimensions.width
+                              +. ghost.dimensions.width
                               /* finally, substract distance from the left side of the page */
-                              - ghost.departurePoint.page.x,
+                              -. ghost.departurePoint.page.x,
                             y:
                               /* To the top bound of the droppable */
                               droppable.rect.page.top
                               /* add the top border and padding of the droppable */
-                              + (
-                                droppable.borders.top + droppable.paddings.top
+                              +. (
+                                droppable.borders.top +. droppable.paddings.top
                               )
                               /* add distance between ghost's top bound and the pointer */
-                              + (
+                              +. (
                                 ghost.departurePoint.page.y
-                                - ghost.departureRect.page.top
+                                -. ghost.departureRect.page.top
                               )
                               /* finally, substract distance from the top of the page */
-                              - ghost.departurePoint.page.y,
+                              -. ghost.departurePoint.page.y,
                           }
                         | Y => {
                             x:
                               /* To the left bound of the droppable */
                               droppable.rect.page.left
                               /* add the left border and padding of the droppable */
-                              + (
+                              +. (
                                 droppable.borders.left
-                                + droppable.paddings.left
+                                +. droppable.paddings.left
                               )
                               /* add distance between ghost's left bound and the pointer */
-                              + (
+                              +. (
                                 ghost.departurePoint.page.x
-                                - ghost.departureRect.page.left
+                                -. ghost.departureRect.page.left
                               )
                               /* finally, substract distance from the left side of the page */
-                              - ghost.departurePoint.page.x,
+                              -. ghost.departurePoint.page.x,
                             y:
                               /* From the bottom bound of the droppable */
                               droppable.rect.page.bottom
                               /* substract the bottom border and padding of the droppable */
-                              - (
+                              -. (
                                 droppable.borders.bottom
-                                + droppable.paddings.bottom
+                                +. droppable.paddings.bottom
                               )
                               /* substract distance between ghost's bottom bound and the pointer */
-                              - (
+                              -. (
                                 ghost.departureRect.page.bottom
-                                - ghost.departurePoint.page.y
+                                -. ghost.departurePoint.page.y
                               )
                               /* add ghost's height since ghost pushed the bottom side down */
-                              + ghost.dimensions.height
+                              +. ghost.dimensions.height
                               /* finally, substract distance from the top of the page */
-                              - ghost.departurePoint.page.y,
+                              -. ghost.departurePoint.page.y,
                           }
                         },
                     },
@@ -1414,7 +1496,7 @@ module Make = (Cfg: Config) => {
                         prev: ghost.originalDroppable,
                         next: targetDroppableId,
                       },
-                      sortedDraggables |. Array.map(item => item.id),
+                      sortedDraggables->(Array.map(item => item.id)),
                     ),
                   );
                 }
@@ -1441,29 +1523,29 @@ module Make = (Cfg: Config) => {
         switch (state.status) {
         | Dragging(ghost, _) =>
           let droppable =
-            state.droppables^ |. Map.getExn(ghost.originalDroppable);
+            (state.droppables^)->(Map.getExn(ghost.originalDroppable));
 
           let ghost =
             switch (droppable) {
             | {scrollable: Some(scrollable)} => {
                 ...ghost,
                 delta: {
-                  x: 0 - scrollable.scroll.delta.x,
-                  y: 0 - scrollable.scroll.delta.y,
+                  x: 0.0 -. scrollable.scroll.delta.x,
+                  y: 0.0 -. scrollable.scroll.delta.y,
                 },
               }
             | {scrollable: None} => {
                 ...ghost,
                 delta: {
-                  x: 0,
-                  y: 0,
+                  x: 0.0,
+                  y: 0.0,
                 },
               }
             };
 
           let draggables =
-            state.draggables^
-            |. Map.map(draggable => {...draggable, shift: None});
+            (state.draggables^)
+            ->(Map.map(draggable => {...draggable, shift: None}));
 
           ReasonReact.UpdateWithSideEffects(
             {

@@ -45,8 +45,8 @@ module Make = (Cfg: Config) => {
                   initial: elementScrollPosition,
                   current: elementScrollPosition,
                   delta: {
-                    x: 0,
-                    y: 0,
+                    x: 0.0,
+                    y: 0.0,
                   },
                 },
             },
@@ -97,28 +97,32 @@ module Make = (Cfg: Config) => {
       },
     render: ({state}) =>
       <Fragment>
-        (
+        {
           ReasonReact.createDomElement(
             "div",
             ~props={
               "ref": element =>
                 state.element :=
                   element
-                  |. Js.Nullable.toOption
-                  |. Option.map(Webapi.Dom.Element.unsafeAsHtmlElement),
+                  ->Js.Nullable.toOption
+                  ->(Option.map(Webapi.Dom.Element.unsafeAsHtmlElement)),
               "className":
                 className
-                |. Option.map(fn =>
-                     fn(
-                       ~draggingOver=
-                         context.target
-                         |. Option.map(target =>
-                              Cfg.Droppable.eq(target, droppableId)
+                ->(
+                    Option.map(fn =>
+                      fn(
+                        ~draggingOver=
+                          context.target
+                          ->(
+                              Option.map(target =>
+                                Cfg.Droppable.eq(target, droppableId)
+                              )
                             )
-                         |. Option.getWithDefault(false),
-                     )
-                   )
-                |. Js.Nullable.fromOption,
+                          ->(Option.getWithDefault(false)),
+                      )
+                    )
+                  )
+                ->Js.Nullable.fromOption,
             },
             switch (context.status) {
             | Dragging(ghost, _)
@@ -129,57 +133,71 @@ module Make = (Cfg: Config) => {
                     Some(droppableId),
                     Cfg.Droppable.eq,
                   )
-                  && ! ghost.targetingOriginalDroppable =>
+                  && !ghost.targetingOriginalDroppable =>
               let (width, height) =
                 switch (ghost.axis) {
-                | X => Style.(ghost.dimensions.width |. px, 0 |. px)
-                | Y => Style.(0 |. px, ghost.dimensions.height |. px)
+                | X =>
+                  Style.((ghost.dimensions.width |> int_of_float)->px, 0->px)
+                | Y =>
+                  Style.(0->px, (ghost.dimensions.height |> int_of_float)->px)
                 };
 
               children
-              |. Array.concat([|
-                   <div
-                     style=(
-                       ReactDOMRe.Style.make(
-                         ~boxSizing="border-box",
-                         ~width,
-                         ~minWidth=width,
-                         ~height,
-                         ~minHeight=height,
-                         ~marginTop=Style.(ghost.margins.top |. px),
-                         ~marginBottom=Style.(ghost.margins.bottom |. px),
-                         ~marginLeft=Style.(ghost.margins.left |. px),
-                         ~marginRight=Style.(ghost.margins.right |. px),
-                         ~borderTop=Style.(ghost.borders.top |. px),
-                         ~borderBottom=Style.(ghost.borders.bottom |. px),
-                         ~borderLeft=Style.(ghost.borders.left |. px),
-                         ~borderRight=Style.(ghost.borders.right |. px),
-                         ~transition=Style.transition("all"),
-                         (),
-                       )
-                     )
-                   />,
-                 |]);
+              ->(
+                  Array.concat([|
+                    <div
+                      style={
+                        ReactDOMRe.Style.make(
+                          ~boxSizing="border-box",
+                          ~width,
+                          ~minWidth=width,
+                          ~height,
+                          ~minHeight=height,
+                          ~marginTop=
+                            Style.((ghost.margins.top |> int_of_float)->px),
+                          ~marginBottom=
+                            Style.((ghost.margins.bottom |> int_of_float)->px),
+                          ~marginLeft=
+                            Style.((ghost.margins.left |> int_of_float)->px),
+                          ~marginRight=
+                            Style.((ghost.margins.right |> int_of_float)->px),
+                          ~borderTop=
+                            Style.((ghost.borders.top |> int_of_float)->px),
+                          ~borderBottom=
+                            Style.((ghost.borders.bottom |> int_of_float)->px),
+                          ~borderLeft=
+                            Style.((ghost.borders.left |> int_of_float)->px),
+                          ~borderRight=
+                            Style.((ghost.borders.right |> int_of_float)->px),
+                          ~transition=Style.transition("all"),
+                          (),
+                        )
+                      }
+                    />,
+                  |])
+                );
             | _ =>
               children
-              |. Array.concat([|
-                   <div
-                     style=(
-                       ReactDOMRe.Style.make(
-                         ~boxSizing="border-box",
-                         ~margin=Style.(0 |. px),
-                         ~border=Style.(0 |. px),
-                         ~width=Style.(0 |. px),
-                         ~height=Style.(0 |. px),
-                         ~transition="none",
-                         (),
-                       )
-                     )
-                   />,
-                 |])
+              ->(
+                  Array.concat([|
+                    <div
+                      style={
+                        ReactDOMRe.Style.make(
+                          ~boxSizing="border-box",
+                          ~margin=Style.(0->px),
+                          ~border=Style.(0->px),
+                          ~width=Style.(0->px),
+                          ~height=Style.(0->px),
+                          ~transition="none",
+                          (),
+                        )
+                      }
+                    />,
+                  |])
+                )
             },
           )
-        )
+        }
       </Fragment>,
   };
 };

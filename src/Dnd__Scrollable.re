@@ -18,15 +18,15 @@ module Window = {
       |> Option.getExn;
 
     Distance.{
-      x: element |> HtmlElement.scrollWidth,
-      y: element |> HtmlElement.scrollHeight,
+      x: element |> HtmlElement.scrollWidth |> float_of_int,
+      y: element |> HtmlElement.scrollHeight |> float_of_int,
     };
   };
 };
 
 module Element = {
-  [@bs.get] external overflowX : Dom.cssStyleDeclaration => string = "";
-  [@bs.get] external overflowY : Dom.cssStyleDeclaration => string = "";
+  [@bs.get] external overflowX: Dom.cssStyleDeclaration => string = "";
+  [@bs.get] external overflowY: Dom.cssStyleDeclaration => string = "";
 
   let isScrollable = style =>
     Webapi.Dom.[
@@ -34,12 +34,14 @@ module Element = {
       style |> overflowX,
       style |> overflowY,
     ]
-    |. List.some(
-         fun
-         | "auto"
-         | "scroll" => true
-         | _ => false,
-       );
+    ->(
+        List.some(
+          fun
+          | "auto"
+          | "scroll" => true
+          | _ => false,
+        )
+      );
 
   let getScrollPosition = element =>
     Point.{
@@ -49,47 +51,49 @@ module Element = {
 
   let getMaxScroll = element =>
     Distance.{
-      x: Webapi.Dom.(element |> HtmlElement.scrollWidth),
-      y: Webapi.Dom.(element |> HtmlElement.scrollHeight),
+      x: Webapi.Dom.(element |> HtmlElement.scrollWidth |> float_of_int),
+      y: Webapi.Dom.(element |> HtmlElement.scrollHeight |> float_of_int),
     };
 
   let rec getClosestScrollable = (element: Dom.htmlElement) =>
     element
-    |. Webapi.Dom.HtmlElement.parentElement
-    |. Option.flatMap(element => {
-         let style =
-           Webapi.Dom.window |> Webapi.Dom.Window.getComputedStyle(element);
-         if (style |> isScrollable) {
-           let element =
-             Webapi.Dom.(element |> HtmlElement.ofElement |> Option.getExn);
-           let rect =
-             Webapi.Dom.(element |> HtmlElement.getBoundingClientRect);
-           let maxScroll = element |> getMaxScroll;
-           let windowScrollPosition = Window.getScrollPosition();
-           let elementScrollPosition = element |> getScrollPosition;
+    ->Webapi.Dom.HtmlElement.parentElement
+    ->(
+        Option.flatMap(element => {
+          let style =
+            Webapi.Dom.window |> Webapi.Dom.Window.getComputedStyle(element);
+          if (style |> isScrollable) {
+            let element =
+              Webapi.Dom.(element |> HtmlElement.ofElement |> Option.getExn);
+            let rect =
+              Webapi.Dom.(element |> HtmlElement.getBoundingClientRect);
+            let maxScroll = element |> getMaxScroll;
+            let windowScrollPosition = Window.getScrollPosition();
+            let elementScrollPosition = element |> getScrollPosition;
 
-           Some(
-             ScrollableElement.{
-               element,
-               geometry:
-                 Geometry.getGeometry(rect, style, windowScrollPosition),
-               scroll:
-                 Scroll.{
-                   max: maxScroll,
-                   initial: elementScrollPosition,
-                   current: elementScrollPosition,
-                   delta: {
-                     x: 0,
-                     y: 0,
-                   },
-                 },
-             },
-           );
-         } else {
-           element
-           |> Webapi.Dom.HtmlElement.ofElement
-           |> Option.getExn
-           |> getClosestScrollable;
-         };
-       });
+            Some(
+              ScrollableElement.{
+                element,
+                geometry:
+                  Geometry.getGeometry(rect, style, windowScrollPosition),
+                scroll:
+                  Scroll.{
+                    max: maxScroll,
+                    initial: elementScrollPosition,
+                    current: elementScrollPosition,
+                    delta: {
+                      x: 0.0,
+                      y: 0.0,
+                    },
+                  },
+              },
+            );
+          } else {
+            element
+            |> Webapi.Dom.HtmlElement.ofElement
+            |> Option.getExn
+            |> getClosestScrollable;
+          };
+        })
+      );
 };

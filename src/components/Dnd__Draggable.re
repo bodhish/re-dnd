@@ -34,7 +34,7 @@ module Make = (Cfg: Config) => {
     let rec onMouseDown = (event, {ReasonReact.state, handle}) =>
       switch (state.context.status, state.element^) {
       | (StandBy, Some(element))
-          when Events.Mouse.(event |. leftClick && ! (event |. modifier)) =>
+          when Events.Mouse.(event->leftClick && !event->modifier) =>
         /*
          * We don't want to prevent text selection by initiating drag start
          * if user wants to select chunk of a text.
@@ -55,13 +55,13 @@ module Make = (Cfg: Config) => {
           RelativityBag.{
             page:
               Point.{
-                x: ReactEventRe.(event |. Mouse.pageX),
-                y: ReactEventRe.(event |. Mouse.pageY),
+                x: ReactEventRe.(event->Mouse.pageX |> float_of_int),
+                y: ReactEventRe.(event->Mouse.pageY |> float_of_int),
               },
             viewport:
               Point.{
-                x: ReactEventRe.(event |. Mouse.clientX),
-                y: ReactEventRe.(event |. Mouse.clientY),
+                x: ReactEventRe.(event->Mouse.clientX |> float_of_int),
+                y: ReactEventRe.(event->Mouse.clientY |> float_of_int),
               },
           };
 
@@ -70,29 +70,33 @@ module Make = (Cfg: Config) => {
             RelativityBag.{
               page:
                 Point.{
-                  x: Webapi.Dom.(event |. MouseEvent.pageX),
-                  y: Webapi.Dom.(event |. MouseEvent.pageY),
+                  x: Webapi.Dom.(event->MouseEvent.pageX |> float_of_int),
+                  y: Webapi.Dom.(event->MouseEvent.pageY |> float_of_int),
                 },
               viewport:
                 Point.{
-                  x: Webapi.Dom.(event |. MouseEvent.clientX),
-                  y: Webapi.Dom.(event |. MouseEvent.clientY),
+                  x: Webapi.Dom.(event->MouseEvent.clientX |> float_of_int),
+                  y: Webapi.Dom.(event->MouseEvent.clientY |> float_of_int),
                 },
             };
 
           let moved =
-            Js.Math.abs_int(start.page.x - current.page.x) > moveThreshold
-            || Js.Math.abs_int(start.page.y - current.page.y) > moveThreshold;
+            Js.Math.abs_int(start.page.x -. current.page.x |> int_of_float)
+            > moveThreshold
+            || Js.Math.abs_int(
+                 start.page.y -. current.page.y |> int_of_float,
+               )
+            > moveThreshold;
 
           selectionOnStart :=
-            selectionOnStart^
-            |. Option.getWithDefault(! Selection.selectionCollapsed())
-            |. Some;
+            (selectionOnStart^)
+            ->(Option.getWithDefault(!Selection.selectionCollapsed()))
+            ->Some;
 
           let selecting =
             switch (
               selectionOnStart^,
-              current |. Selection.pointWithinSelection,
+              current->Selection.pointWithinSelection,
             ) {
             | (Some(false), _)
             | (Some(true), false) => false
@@ -100,15 +104,15 @@ module Make = (Cfg: Config) => {
             | (Some(true), true) => true
             };
 
-          if (moved && ! selecting) {
+          if (moved && !selecting) {
             dropInitialSubscriptions();
             Selection.clearSelection();
 
-            let onMouseMove = onMouseMove |. handle;
-            let onMouseUp = onMouseUp |. handle;
-            let onKeyDown = onKeyDown |. handle;
-            let onResize = onResize |. handle;
-            let onVisibilityChange = onVisibilityChange |. handle;
+            let onMouseMove = onMouseMove->handle;
+            let onMouseUp = onMouseUp->handle;
+            let onKeyDown = onKeyDown->handle;
+            let onResize = onResize->handle;
+            let onVisibilityChange = onVisibilityChange->handle;
 
             let subscriptions =
               Subscriptions.{
@@ -159,19 +163,19 @@ module Make = (Cfg: Config) => {
       switch (state.context.status) {
       | Dragging(ghost, _)
           when Cfg.Draggable.eq(state.draggableId, ghost.draggableId) =>
-        Webapi.Dom.(event |. MouseEvent.preventDefault);
+        Webapi.Dom.(event->MouseEvent.preventDefault);
 
         let point =
           RelativityBag.{
             page:
               Point.{
-                x: Webapi.Dom.(event |. MouseEvent.pageX),
-                y: Webapi.Dom.(event |. MouseEvent.pageY),
+                x: Webapi.Dom.(event->MouseEvent.pageX |> float_of_int),
+                y: Webapi.Dom.(event->MouseEvent.pageY |> float_of_int),
               },
             viewport:
               Point.{
-                x: Webapi.Dom.(event |. MouseEvent.clientX),
-                y: Webapi.Dom.(event |. MouseEvent.clientY),
+                x: Webapi.Dom.(event->MouseEvent.clientX |> float_of_int),
+                y: Webapi.Dom.(event->MouseEvent.clientY |> float_of_int),
               },
           };
 
@@ -227,9 +231,9 @@ module Make = (Cfg: Config) => {
     let rec onTouchStart = (event, {ReasonReact.state, handle}) => {
       let touch =
         event
-        |. ReactEventRe.Touch.touches
-        |. Events.Touch.castReactTouchListToTouchArray
-        |. Array.get(0);
+        ->ReactEventRe.Touch.touches
+        ->Events.Touch.castReactTouchListToTouchArray
+        ->(Array.get(0));
 
       switch (state.context.status, state.element^, touch) {
       | (StandBy, Some(element), Some(touch)) =>
@@ -237,8 +241,16 @@ module Make = (Cfg: Config) => {
 
         let start =
           RelativityBag.{
-            page: Point.{x: touch##pageX, y: touch##pageY},
-            viewport: Point.{x: touch##clientX, y: touch##clientY},
+            page:
+              Point.{
+                x: touch##pageX |> float_of_int,
+                y: touch##pageY |> float_of_int,
+              },
+            viewport:
+              Point.{
+                x: touch##clientX |> float_of_int,
+                y: touch##clientY |> float_of_int,
+              },
           };
 
         let timeoutId: ref(option(Js.Global.timeoutId)) = ref(None);
@@ -249,11 +261,11 @@ module Make = (Cfg: Config) => {
               dropInitialSubscriptions();
               Selection.clearSelection();
 
-              let onTouchMove = onTouchMove |. handle;
-              let onTouchEnd = onTouchEnd |. handle;
-              let onContextMenu = onContextMenu |. handle;
-              let onOrientationChange = onOrientationChange |. handle;
-              let onVisibilityChange = onVisibilityChange |. handle;
+              let onTouchMove = onTouchMove->handle;
+              let onTouchEnd = onTouchEnd->handle;
+              let onContextMenu = onContextMenu->handle;
+              let onOrientationChange = onOrientationChange->handle;
+              let onVisibilityChange = onVisibilityChange->handle;
 
               let subscriptions =
                 Subscriptions.{
@@ -306,7 +318,7 @@ module Make = (Cfg: Config) => {
         Events.subscribeToTouchEnd(onInitialTouchEnd);
         Events.subscribeToDrag(onInitialDrag);
 
-        timeoutId := startDragging() |. Some;
+        timeoutId := startDragging()->Some;
 
       | (StandBy, _, _)
       | (Dragging(_, _), _, _)
@@ -316,22 +328,30 @@ module Make = (Cfg: Config) => {
     and onTouchMove = (event, {ReasonReact.state}) => {
       open Webapi.Dom;
 
-      let event = event |. Events.Touch.castEventToTouchEvent;
+      let event = event->Events.Touch.castEventToTouchEvent;
       let touch =
         event
-        |. TouchEvent.touches
-        |. Events.Touch.castDomTouchListToTouchArray
-        |. Array.get(0);
+        ->TouchEvent.touches
+        ->Events.Touch.castDomTouchListToTouchArray
+        ->(Array.get(0));
 
       switch (state.context.status, state.element^, touch) {
       | (Dragging(ghost, _), Some(_), Some(touch))
           when Cfg.Draggable.eq(state.draggableId, ghost.draggableId) =>
-        event |. TouchEvent.preventDefault;
+        event->TouchEvent.preventDefault;
 
         let point =
           RelativityBag.{
-            page: Point.{x: touch##pageX, y: touch##pageY},
-            viewport: Point.{x: touch##clientX, y: touch##clientY},
+            page:
+              Point.{
+                x: touch##pageX |> float_of_int,
+                y: touch##pageY |> float_of_int,
+              },
+            viewport:
+              Point.{
+                x: touch##clientX |> float_of_int,
+                y: touch##clientY |> float_of_int,
+              },
           };
 
         state.context.updateGhostPosition(point);
@@ -424,8 +444,8 @@ module Make = (Cfg: Config) => {
           | Dragging(ghost, _)
               when
                 Cfg.Draggable.eq(state.draggableId, ghost.draggableId)
-                && ! (event |> Event.defaultPrevented) =>
-            event |. Event.preventDefault
+                && !(event |> Event.defaultPrevented) =>
+            event->Event.preventDefault
           | _ => ()
           }
         );
@@ -464,31 +484,33 @@ module Make = (Cfg: Config) => {
       let setElementRef = element =>
         state.element :=
           element
-          |. Js.Nullable.toOption
-          |. Option.map(Webapi.Dom.Element.unsafeAsHtmlElement);
+          ->Js.Nullable.toOption
+          ->(Option.map(Webapi.Dom.Element.unsafeAsHtmlElement));
 
       let dragHandle = {
         style:
           ReactDOMRe.Style.make()
-          |. ReactDOMRe.Style.unsafeAddProp(
-               "WebkitTapHighlightColor",
-               "rgba(0, 0, 0, 0)",
-             ),
-        onMouseDown: Handlers.onMouseDown |. handle,
-        onTouchStart: Handlers.onTouchStart |. handle,
+          ->(
+              ReactDOMRe.Style.unsafeAddProp(
+                "WebkitTapHighlightColor",
+                "rgba(0, 0, 0, 0)",
+              )
+            ),
+        onMouseDown: Handlers.onMouseDown->handle,
+        onTouchStart: Handlers.onTouchStart->handle,
       };
 
       let children' =
         switch (children) {
         | Children(children) => [|children|]
-        | ChildrenWithDragHandle(children) => [|dragHandle |. children|]
+        | ChildrenWithDragHandle(children) => [|dragHandle->children|]
         };
 
       switch (context.status) {
       | Dragging(ghost, _)
           when Cfg.Draggable.eq(draggableId, ghost.draggableId) =>
         <Fragment>
-          (
+          {
             ReasonReact.createDomElement(
               "div",
               ~props={
@@ -502,71 +524,91 @@ module Make = (Cfg: Config) => {
                     ~overflow="visible",
                     ~pointerEvents="none",
                     ~userSelect="none",
-                    ~top=Style.(ghost.departureRect.page.top |. px),
-                    ~left=Style.(ghost.departureRect.page.left |. px),
-                    ~width=Style.(ghost.dimensions.width |. px),
-                    ~height=Style.(ghost.dimensions.height |. px),
+                    ~top=
+                      Style.(
+                        (ghost.departureRect.page.top |> int_of_float)->px
+                      ),
+                    ~left=
+                      Style.(
+                        (ghost.departureRect.page.left |> int_of_float)->px
+                      ),
+                    ~width=
+                      Style.((ghost.dimensions.width |> int_of_float)->px),
+                    ~height=
+                      Style.((ghost.dimensions.height |> int_of_float)->px),
                     ~transform=
                       Style.translate(
-                        ghost.delta.x
+                        (ghost.delta.x |> int_of_float)
                         - (
-                          switch (context.scroll) {
-                          | Some(scroll) => scroll.current.x
-                          | None => Webapi.Dom.(window |> Window.pageXOffset)
-                          }
+                          (
+                            switch (context.scroll) {
+                            | Some(scroll) => scroll.current.x
+                            | None => Webapi.Dom.(window |> Window.pageXOffset)
+                            }
+                          )
+                          |> int_of_float
                         ),
-                        ghost.delta.y
+                        (ghost.delta.y |> int_of_float)
                         - (
-                          switch (context.scroll) {
-                          | Some(scroll) => scroll.current.y
-                          | None => Webapi.Dom.(window |> Window.pageYOffset)
-                          }
+                          (
+                            switch (context.scroll) {
+                            | Some(scroll) => scroll.current.y
+                            | None => Webapi.Dom.(window |> Window.pageYOffset)
+                            }
+                          )
+                          |> int_of_float
                         ),
                       ),
                     (),
                   )
-                  |. ReactDOMRe.Style.unsafeAddProp(
-                       "WebkitUserSelect",
-                       "none",
-                     ),
+                  ->(
+                      ReactDOMRe.Style.unsafeAddProp(
+                        "WebkitUserSelect",
+                        "none",
+                      )
+                    ),
                 "className":
                   className
-                  |. Option.map(fn => fn(~dragging=true))
-                  |. Js.Nullable.fromOption,
+                  ->(Option.map(fn => fn(~dragging=true)))
+                  ->Js.Nullable.fromOption,
               },
               children',
             )
-          )
+          }
           {
             let (width, height) =
               switch (ghost.axis) {
-              | X => Style.(ghost.dimensions.width |. px, 0 |. px)
-              | Y => Style.(0 |. px, ghost.dimensions.height |. px)
+              | X =>
+                Style.((ghost.dimensions.width |> int_of_float)->px, 0->px)
+              | Y =>
+                Style.(0->px, (ghost.dimensions.height |> int_of_float)->px)
               };
 
             <div
-              style=(
+              style={
                 ReactDOMRe.Style.make(
                   ~boxSizing="border-box",
                   ~width,
                   ~minWidth=width,
                   ~height,
                   ~minHeight=height,
-                  ~marginTop=Style.(ghost.margins.top |. px),
-                  ~marginBottom=Style.(ghost.margins.bottom |. px),
-                  ~marginLeft=Style.(ghost.margins.left |. px),
-                  ~marginRight=Style.(ghost.margins.right |. px),
+                  ~marginTop=Style.((ghost.margins.top |> int_of_float)->px),
+                  ~marginBottom=
+                    Style.((ghost.margins.bottom |> int_of_float)->px),
+                  ~marginLeft=Style.((ghost.margins.left |> int_of_float)->px),
+                  ~marginRight=
+                    Style.((ghost.margins.right |> int_of_float)->px),
                   ~transition=Style.transition("all"),
                   (),
                 )
-              )
+              }
             />;
           }
         </Fragment>
 
       | Dropping(ghost) when Cfg.Draggable.eq(draggableId, ghost.draggableId) =>
         <Fragment>
-          (
+          {
             ReasonReact.createDomElement(
               "div",
               ~props={
@@ -580,72 +622,92 @@ module Make = (Cfg: Config) => {
                     ~overflow="visible",
                     ~pointerEvents="none",
                     ~userSelect="none",
-                    ~top=Style.(ghost.departureRect.page.top |. px),
-                    ~left=Style.(ghost.departureRect.page.left |. px),
-                    ~width=Style.(ghost.dimensions.width |. px),
-                    ~height=Style.(ghost.dimensions.height |. px),
+                    ~top=
+                      Style.(
+                        (ghost.departureRect.page.top |> int_of_float)->px
+                      ),
+                    ~left=
+                      Style.(
+                        (ghost.departureRect.page.left |> int_of_float)->px
+                      ),
+                    ~width=
+                      Style.((ghost.dimensions.width |> int_of_float)->px),
+                    ~height=
+                      Style.((ghost.dimensions.height |> int_of_float)->px),
                     ~transition=Style.transition("transform"),
                     ~transform=
                       Style.translate(
-                        ghost.delta.x
+                        (ghost.delta.x |> int_of_float)
                         - (
-                          switch (context.scroll) {
-                          | Some(scroll) => scroll.current.x
-                          | None => Webapi.Dom.(window |> Window.pageXOffset)
-                          }
+                          (
+                            switch (context.scroll) {
+                            | Some(scroll) => scroll.current.x
+                            | None => Webapi.Dom.(window |> Window.pageXOffset)
+                            }
+                          )
+                          |> int_of_float
                         ),
-                        ghost.delta.y
+                        (ghost.delta.y |> int_of_float)
                         - (
-                          switch (context.scroll) {
-                          | Some(scroll) => scroll.current.y
-                          | None => Webapi.Dom.(window |> Window.pageYOffset)
-                          }
+                          (
+                            switch (context.scroll) {
+                            | Some(scroll) => scroll.current.y
+                            | None => Webapi.Dom.(window |> Window.pageYOffset)
+                            }
+                          )
+                          |> int_of_float
                         ),
                       ),
                     (),
                   )
-                  |. ReactDOMRe.Style.unsafeAddProp(
-                       "WebkitUserSelect",
-                       "none",
-                     ),
+                  ->(
+                      ReactDOMRe.Style.unsafeAddProp(
+                        "WebkitUserSelect",
+                        "none",
+                      )
+                    ),
                 "className":
                   className
-                  |. Option.map(fn => fn(~dragging=false))
-                  |. Js.Nullable.fromOption,
+                  ->(Option.map(fn => fn(~dragging=false)))
+                  ->Js.Nullable.fromOption,
               },
               children',
             )
-          )
+          }
           {
             let (width, height) =
               switch (ghost.axis) {
-              | X => Style.(ghost.dimensions.width |. px, 0 |. px)
-              | Y => Style.(0 |. px, ghost.dimensions.height |. px)
+              | X =>
+                Style.((ghost.dimensions.width |> int_of_float)->px, 0->px)
+              | Y =>
+                Style.(0->px, (ghost.dimensions.height |> int_of_float)->px)
               };
 
             <div
-              style=(
+              style={
                 ReactDOMRe.Style.make(
                   ~boxSizing="border-box",
                   ~width,
                   ~minWidth=width,
                   ~height,
                   ~minHeight=height,
-                  ~marginTop=Style.(ghost.margins.top |. px),
-                  ~marginBottom=Style.(ghost.margins.bottom |. px),
-                  ~marginLeft=Style.(ghost.margins.left |. px),
-                  ~marginRight=Style.(ghost.margins.right |. px),
+                  ~marginTop=Style.((ghost.margins.top |> int_of_float)->px),
+                  ~marginBottom=
+                    Style.((ghost.margins.bottom |> int_of_float)->px),
+                  ~marginLeft=Style.((ghost.margins.left |> int_of_float)->px),
+                  ~marginRight=
+                    Style.((ghost.margins.right |> int_of_float)->px),
                   ~transition=Style.transition("all"),
                   (),
                 )
-              )
+              }
             />;
           }
         </Fragment>
 
       | Dragging(ghost, _)
       | Dropping(ghost) =>
-        switch (draggableId |. context.getDraggableShift) {
+        switch (draggableId->(context.getDraggableShift)) {
         | Some(Alpha) when ghost.targetingOriginalDroppable =>
           ReasonReact.createDomElement(
             "div",
@@ -663,8 +725,9 @@ module Make = (Cfg: Config) => {
                       Style.translate(
                         - (
                           ghost.dimensions.width
-                          + ghost.margins.left
-                          + ghost.margins.right
+                          +. ghost.margins.left
+                          +. ghost.margins.right
+                          |> int_of_float
                         ),
                         0,
                       )
@@ -673,18 +736,21 @@ module Make = (Cfg: Config) => {
                         0,
                         - (
                           ghost.dimensions.height
-                          + ghost.margins.top
-                          + ghost.margins.bottom
+                          +. ghost.margins.top
+                          +. ghost.margins.bottom
+                          |> int_of_float
                         ),
                       )
                     },
                   (),
                 )
-                |. ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none"),
+                ->(
+                    ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none")
+                  ),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
             },
             children',
           )
@@ -705,25 +771,29 @@ module Make = (Cfg: Config) => {
                     | X =>
                       Style.translate(
                         ghost.dimensions.width
-                        + ghost.margins.left
-                        + ghost.margins.right,
+                        +. ghost.margins.left
+                        +. ghost.margins.right
+                        |> int_of_float,
                         0,
                       )
                     | Y =>
                       Style.translate(
                         0,
                         ghost.dimensions.height
-                        + ghost.margins.top
-                        + ghost.margins.bottom,
+                        +. ghost.margins.top
+                        +. ghost.margins.bottom
+                        |> int_of_float,
                       )
                     },
                   (),
                 )
-                |. ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none"),
+                ->(
+                    ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none")
+                  ),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
             },
             children',
           )
@@ -741,11 +811,13 @@ module Make = (Cfg: Config) => {
                   ~transition=Style.transition("transform"),
                   (),
                 )
-                |. ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none"),
+                ->(
+                    ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none")
+                  ),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
             },
             children',
           )
@@ -766,25 +838,29 @@ module Make = (Cfg: Config) => {
                     | X =>
                       Style.translate(
                         ghost.dimensions.width
-                        + ghost.margins.left
-                        + ghost.margins.right,
+                        +. ghost.margins.left
+                        +. ghost.margins.right
+                        |> int_of_float,
                         0,
                       )
                     | Y =>
                       Style.translate(
                         0,
                         ghost.dimensions.height
-                        + ghost.margins.top
-                        + ghost.margins.bottom,
+                        +. ghost.margins.top
+                        +. ghost.margins.bottom
+                        |> int_of_float,
                       )
                     },
                   (),
                 )
-                |. ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none"),
+                ->(
+                    ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none")
+                  ),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
             },
             children',
           )
@@ -802,11 +878,13 @@ module Make = (Cfg: Config) => {
                   ~transition=Style.transition("transform"),
                   (),
                 )
-                |. ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none"),
+                ->(
+                    ReactDOMRe.Style.unsafeAddProp("WebkitUserSelect", "none")
+                  ),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
             },
             children',
           )
@@ -822,8 +900,8 @@ module Make = (Cfg: Config) => {
               "style": ReactDOMRe.Style.make(~boxSizing="border-box", ()),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
               "onMouseDown": dragHandle.onMouseDown,
               "onTouchStart": dragHandle.onTouchStart,
             },
@@ -837,8 +915,8 @@ module Make = (Cfg: Config) => {
               "style": ReactDOMRe.Style.make(~boxSizing="border-box", ()),
               "className":
                 className
-                |. Option.map(fn => fn(~dragging=false))
-                |. Js.Nullable.fromOption,
+                ->(Option.map(fn => fn(~dragging=false)))
+                ->Js.Nullable.fromOption,
             },
             children',
           )
